@@ -1,0 +1,33 @@
+{
+    "DESIGN_NAME": "conv_core",
+    "VERILOG_FILES": [
+        "dir::pe.v",
+        "dir::systolic_array.v",
+        "dir::weight_loader.v",
+        "dir::conv_controller.v",
+        "dir::kernel_bank.v",
+        "dir::row_sram.v",
+        "dir::output_accumulator.v",
+        "dir::feed_lane.v",
+        "dir::channel_bank.v",
+        "dir::im2col_addr_gen.v",
+        "dir::MMU.v",
+        "dir::conv_core.v"
+    ],
+    "CLOCK_PORT": "clk",
+    "CLOCK_PERIOD": 16.0,
+    "DESIGN_IS_CORE": 1,
+    "FP_SIZING": "relative",
+    "FP_CORE_UTIL": 40,
+    "FP_ASPECT_RATIO": 1.0,
+    "PL_TARGET_DENSITY": 0.45,
+    "PL_BASIC_PLACEMENT": 0,
+    "SYNTH_STRATEGY": "AREA 2",
+    "SYNTH_MAX_FANOUT": 16,
+    "MAX_TRANSITION_CONSTRAINT": 1.5,
+    "GRT_ALLOW_CONGESTION": 0,
+    "ROUTING_CORES": 8,
+    "FP_PDN_MULTILAYER": 1,
+    "FP_PIN_MODE": "random",
+    "DIODE_INSERTION_STRATEGY": 3
+}
