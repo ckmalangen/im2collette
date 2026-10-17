@@ -4,12 +4,14 @@ module feed_lane #(
     parameter integer CHANNEL_INDEX = 0,
     parameter integer BIT_WIDTH     = 8,
     parameter integer BUS_WORDS     = 8,
-    parameter integer ADDR_WIDTH    = 8
+    parameter integer ADDR_WIDTH    = 8,
+    parameter integer M_INTERM      = 4,
+    parameter integer FIFO_DEPTH    = 8
 ) (
-    input  wire                             clk,
-    input  wire                             clear,
-    input  wire                             feed_active,
-    input  wire                             stream_enable,
+    input  wire clk,
+    input  wire clear,
+    input  wire feed_active,
+    input  wire stream_enable,
 
     // Bundle: {feed_en, valid, byte_offset, sram_raddr}
     input  wire [ADDR_WIDTH+5:0]            feed_in,
@@ -18,7 +20,8 @@ module feed_lane #(
 
     output wire [ADDR_WIDTH-1:0]            sram_raddr,
     input  wire [(BUS_WORDS*BIT_WIDTH)-1:0] sram_rdata_bus,
-    output wire [BIT_WIDTH-1:0]             activation_out
+    output wire [BIT_WIDTH-1:0]             activation_out,
+    output wire                             lane_ready
 );
 
     // 1. Skew chain: row 0 has zero delay; row c adds c registers
@@ -55,9 +58,45 @@ module feed_lane #(
         end
     endgenerate
 
-    wire [BIT_WIDTH-1:0] selected_word = bus_words[byte_offset_q % BUS_WORDS];
+    // 5. Intermediate Receptive-Field Window Registers (Zhou et al.)
+    wire [BIT_WIDTH-1:0] interm_window [0:M_INTERM-1];
+    genvar m;
+    generate
+        for (m = 0; m < M_INTERM; m = m + 1) begin : g_interm
+            assign interm_window[m] = bus_words[(byte_offset_q + m) % BUS_WORDS];
+        end
+    endgenerate
 
-    // 5. Gating: feed_out[ADDR_WIDTH+5] is feed_en
+    wire [BIT_WIDTH-1:0] selected_word = interm_window[0];
+
+    // 6. Decoupling Synchronous FIFO
+    wire [BIT_WIDTH-1:0] fifo_dout;
+    wire                 fifo_full;
+    wire                 fifo_empty;
+
+    wire push_valid = feed_out[ADDR_WIDTH+5] && rd_valid_q;
+    wire fifo_wr_en = push_valid && !fifo_full;
+    wire fifo_rd_en = feed_active && stream_enable && !fifo_empty;
+
+    sync_fifo #(
+        .DATA_WIDTH(BIT_WIDTH),
+        .DEPTH(FIFO_DEPTH),
+        .ADDR_WIDTH(3)
+    ) u_lowered_fifo (
+        .clk   (clk),
+        .rst   (clear),
+        .wr_en (fifo_wr_en),
+        .din   (selected_word),
+        .rd_en (fifo_rd_en),
+        .dout  (fifo_dout),
+        .full  (fifo_full),
+        .empty (fifo_empty),
+        .count ()
+    );
+
+    assign lane_ready = !fifo_full;
+
+    // 7. Exact baseline gating: uses un-delayed feed_out[ADDR_WIDTH+5]
     assign activation_out = (feed_active && stream_enable && feed_out[ADDR_WIDTH+5] && rd_valid_q)
                             ? selected_word : {BIT_WIDTH{1'b0}};
 
